@@ -117,8 +117,8 @@ $detalles = $stmt->get_result();
                             <div>
                                 <?php
                                 $bg = 'bg-secondary';
-                                if ($venta['estatus'] == 'Completada' || $venta['estatus'] == 'Pagado') $bg = 'bg-success';
-                                if ($venta['estatus'] == 'Pendiente') $bg = 'bg-warning text-dark';
+                                if ($venta['estatus'] == 'En proceso' || $venta['estatus'] == 'Pagado') $bg = 'bg-warning text-dark';
+                                if ($venta['estatus'] == 'Finalizada') $bg = ' bg-success';
                                 if ($venta['estatus'] == 'Cancelada') $bg = 'bg-danger';
                                 ?>
                                 <span class="badge <?= $bg ?>"><?= $venta['estatus'] ?></span>

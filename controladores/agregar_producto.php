@@ -79,6 +79,11 @@ $nombre = $_SESSION['nombre'];
                                     <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
                                     <input type="text" class="form-control" id="id_producto" name="id_producto" required placeholder="Ej. 750100...">
                                 </div>
+                                <button type="button"
+                                    class="btn btn-outline-primary w-100 mt-2 d-md-none"
+                                    onclick="abrirScanner()">
+                                    <i class="bi bi-camera"></i> Escanear con cámara
+                                </button>
                             </div>
                             <div class="col-md-6">
                                 <label for="marca" class="form-label fw-bold">Marca</label>
@@ -119,6 +124,12 @@ $nombre = $_SESSION['nombre'];
                             </a>
                         </div>
                     </form>
+                    <div id="scanner-container" class="mt-3 d-none">
+                        <video id="video" autoplay playsinline style="width:100%;"></video>
+                        <button class="btn btn-danger w-100 mt-2" onclick="cerrarScanner()">
+                            Cerrar cámara
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -139,7 +150,7 @@ $nombre = $_SESSION['nombre'];
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Mostrar Toast automáticamente al cargar (opcional, basado en tu código anterior)
+        
         document.addEventListener("DOMContentLoaded", function() {
             const toastElement = document.getElementById('liveToast');
             if (toastElement) {
@@ -148,6 +159,8 @@ $nombre = $_SESSION['nombre'];
             }
         });
     </script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="../assets/js/buscar-scanner.js" defer></script>
 
 </body>
 

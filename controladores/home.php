@@ -154,6 +154,11 @@ $nombre = $_SESSION['nombre']; // Obtenemos el nombre de la sesión
                                     <div class="col-auto flex-grow-1">
                                         <input type="text" name="busqueda_general" id="busqueda_general" class="form-control" placeholder="Escribe para buscar..." value="<?= htmlspecialchars($busqueda_general) ?>">
                                     </div>
+                                    <button type="button"
+                                        class="btn btn-outline-primary w-100 mt-2 d-md-none"
+                                        onclick="abrirScanner()">
+                                        <i class="bi bi-camera"></i> Escanear con cámara
+                                    </button>
                                     <div class="col-auto">
                                         <button type="submit" name="buscar" class="btn btn-primary">Buscar</button>
                                         <a href="home.php" class="btn btn-outline-secondary">Limpiar</a>
@@ -169,6 +174,12 @@ $nombre = $_SESSION['nombre']; // Obtenemos el nombre de la sesión
                                     <div class="col-md-2"><input type="number" step="0.01" name="f_precio" class="form-control form-control-sm" placeholder="Filtrar Precio" value="<?= htmlspecialchars($filtros['precio']) ?>"></div>
                                 </div>
                             </form>
+                            <div id="scanner-container" class="mt-3 d-none">
+                                <video id="video" autoplay playsinline style="width:100%;"></video>
+                                <button class="btn btn-danger w-100 mt-2" onclick="cerrarScanner()">
+                                    Cerrar cámara
+                                </button>
+                            </div>
 
                             <?php if ($result && $result->num_rows > 0): ?>
                                 <div class="table-responsive">
@@ -262,6 +273,7 @@ $nombre = $_SESSION['nombre']; // Obtenemos el nombre de la sesión
             });
         <?php endif; ?>
     </script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="../assets/js/buscar-scanner.js" defer></script>
 </body>
-
 </html>

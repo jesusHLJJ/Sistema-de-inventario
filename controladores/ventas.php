@@ -71,6 +71,79 @@ if ($params) {
 
 $stmt->execute();
 $ventas = $stmt->get_result();
+
+$sql_corte = "SELECT 
+                COUNT(*) AS total_ventas,
+                SUM(monto) AS total_dinero
+              FROM venta
+              WHERE DATE(fecha) = CURDATE()
+              AND id_estatus = 2";
+
+$result_corte = $conexion->query($sql_corte);
+$corte = $result_corte->fetch_assoc();
+
+$total_ventas_hoy = $corte['total_ventas'] ?? 0;
+$total_dinero_hoy = $corte['total_dinero'] ?? 0;
+
+$sql_caja = "SELECT * FROM caja 
+             WHERE DATE(fecha_apertura) = CURDATE() 
+             LIMIT 1";
+$result_caja = $conexion->query($sql_caja);
+$caja = $result_caja->fetch_assoc();
+
+
+if (isset($_POST['abrir_caja'])) {
+
+    $dinero_inicial = $_POST['dinero_inicial'];
+    $id_empleado = $_SESSION['id_empleado'];
+
+    if (!$caja) {
+
+        $stmt = $conexion->prepare("INSERT INTO caja (dinero_inicial, id_empleado) VALUES (?, ?)");
+        $stmt->bind_param("di", $dinero_inicial, $id_empleado);
+        $stmt->execute();
+
+        header("Location: ventas.php");
+        exit();
+    }
+}
+
+
+if (isset($_POST['cerrar_caja']) && $caja && $caja['estatus'] == 'abierta') {
+
+    $total_ventas = $total_dinero_hoy;
+    $total_final = $caja['dinero_inicial'] + $total_ventas;
+
+    $stmt = $conexion->prepare("
+        UPDATE caja 
+        SET total_ventas = ?, 
+            total_final = ?, 
+            fecha_cierre = NOW(),
+            estatus = 'cerrada'
+        WHERE DATE(fecha_apertura) = CURDATE()
+    ");
+
+    $stmt->bind_param("dd", $total_ventas, $total_final);
+    $stmt->execute();
+
+    header("Location: ventas.php");
+    exit();
+}
+
+if (isset($_POST['reabrir_caja']) && $caja && $caja['estatus'] == 'cerrada') {
+
+    $stmt = $conexion->prepare("
+        UPDATE caja 
+        SET estatus = 'abierta',
+            fecha_cierre = NULL
+        WHERE DATE(fecha_apertura) = CURDATE()
+    ");
+
+    $stmt->execute();
+
+    header("Location: ventas.php");
+    exit();
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -133,7 +206,72 @@ $ventas = $stmt->get_result();
                     </div>
 
                     <div class="card-body p-4">
+                        <?php if (!$caja): ?>
 
+                            <!-- NO HAY CAJA -->
+                            <div class="alert alert-warning shadow-sm">
+                                <form method="POST" class="row g-2 align-items-end">
+                                    <div class="col-md-4">
+                                        <label class="fw-bold">Dinero inicial</label>
+                                        <input type="number" step="0.01" name="dinero_inicial" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="submit" name="abrir_caja" class="btn btn-success w-100">
+                                            <i class="bi bi-unlock-fill"></i> Abrir Caja
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+
+                        <?php elseif ($caja['estatus'] == 'abierta'): ?>
+
+                            <!-- CAJA ABIERTA -->
+                            <div class="alert alert-info shadow-sm d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Caja abierta</strong> |
+                                    Dinero inicial: <strong>$<?= number_format($caja['dinero_inicial'], 2) ?></strong>
+                                </div>
+                                <form method="POST">
+                                    <button type="submit" name="cerrar_caja" class="btn btn-danger">
+                                        <i class="bi bi-lock-fill"></i> Cerrar Caja
+                                    </button>
+                                </form>
+                            </div>
+
+                        <?php else: ?>
+
+                            <div class="alert alert-success shadow-sm d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Caja cerrada</strong><br>
+                                    Dinero inicial: $<?= number_format($caja['dinero_inicial'], 2) ?><br>
+                                    Total ventas: $<?= number_format($caja['total_ventas'], 2) ?><br>
+                                    Total final: $<?= number_format($caja['total_final'], 2) ?>
+                                </div>
+
+                                <form method="POST">
+                                    <button type="submit" name="reabrir_caja"
+                                        class="btn btn-warning"
+                                        onclick="return confirm('¿Seguro que deseas reabrir la caja?')">
+                                        <i class="bi bi-arrow-counterclockwise"></i> Reabrir Caja
+                                    </button>
+                                </form>
+                            </div>
+
+                        <?php endif; ?>
+
+
+                        <div class="alert alert-success shadow-sm">
+                            <div class="row text-center">
+                                <div class="col-md-6">
+                                    <h5 class="fw-bold mb-1">Ventas del día</h5>
+                                    <h3><?= $total_ventas_hoy ?></h3>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5 class="fw-bold mb-1">Total vendido hoy</h5>
+                                    <h3>$<?= number_format($total_dinero_hoy, 2) ?></h3>
+                                </div>
+                            </div>
+                        </div>
                         <form method="GET" class="row g-3 mb-4 bg-light p-3 rounded border align-items-end">
 
                             <div class="col-12 mb-2">
@@ -216,8 +354,8 @@ $ventas = $stmt->get_result();
                                                 <td class="text-center">
                                                     <?php
                                                     $badge = match ($v['estatus']) {
-                                                        'Completada', 'Pagado' => 'bg-success',
-                                                        'Pendiente' => 'bg-warning text-dark',
+                                                        'En proceso', 'Pagado' => ' bg-warning text-dark',
+                                                        'Finalizada' => ' bg-success',
                                                         'Cancelada' => 'bg-danger',
                                                         default => 'bg-secondary'
                                                     };
