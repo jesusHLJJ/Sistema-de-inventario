@@ -44,6 +44,11 @@
                 <i class="bi bi-box me-2"></i> Pedidos
             </a>
         </li>
+        <li>
+            <a href="analisis.php" class="nav-link <?= ($pagina == 'analisis') ? 'active' : 'text-white' ?>">
+                <i class="bi bi-graph-up-arrow me-2"></i> Rendimiento
+            </a>
+        </li>
         <li class="nav-item d-md-none mt-3">
             <a href="logout.php" class="nav-link text-white bg-danger">
                 <i class="bi bi-box-arrow-right me-2"></i> Cerrar sesión

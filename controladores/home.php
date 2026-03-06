@@ -1,13 +1,87 @@
 <?php
 session_start();
+require_once 'conexion.php';
 
-// Validar si el usuario está logueado
 if (!isset($_SESSION['id_empleado'])) {
     header("Location: ../index.php");
     exit;
 }
 
-$nombre = $_SESSION['nombre']; // Obtenemos el nombre de la sesión
+$nombre_usuario = $_SESSION['nombre'];
+
+/* =========================
+   PROCESAR ACTUALIZACIÓN
+========================= */
+if (isset($_POST['guardar_cambios'])) {
+    $id_original = $_POST['id_original'];
+    $id_producto = $_POST['id_producto'];
+    $marca = $_POST['marca'];
+    $nombre = $_POST['nombre'];
+    $contenido = $_POST['contenido'];
+    $piezas = $_POST['piezas'];
+    $precio = $_POST['precio'];
+
+    $stmt = $conexion->prepare("UPDATE producto SET id_producto=?, marca=?, nombre=?, contenido=?, piezas=?, precio=? WHERE id_producto=?");
+    $stmt->bind_param("ssssids", $id_producto, $marca, $nombre, $contenido, $piezas, $precio, $id_original);
+
+    if ($stmt->execute()) {
+        $params = $_GET;
+        unset($params['editar_id']);
+        $params['status'] = 'success';
+        header("Location: home.php?" . http_build_query($params));
+        exit;
+    }
+}
+
+/* =========================
+   LÓGICA DE FILTROS Y PAGINACIÓN
+========================= */
+$busqueda_general = $_GET['busqueda_general'] ?? '';
+$limite = 10;
+$pagina = isset($_GET['pagina']) ? (int)$_GET['pagina'] : 1;
+if ($pagina < 1) $pagina = 1;
+$offset = ($pagina - 1) * $limite;
+
+$where = [];
+$params_query = [];
+$types = '';
+
+if ($busqueda_general !== '') {
+    $param = "%$busqueda_general%";
+    $where[] = "(id_producto LIKE ? OR marca LIKE ? OR nombre LIKE ?)";
+    $types .= "sss";
+    $params_query = [$param, $param, $param];
+}
+
+// 1. CONTEO REAL DE REGISTROS PARA PAGINACIÓN
+$sql_count = "SELECT COUNT(*) as total FROM producto";
+if ($where) {
+    $sql_count .= " WHERE " . implode(" AND ", $where);
+}
+
+$stmt_c = $conexion->prepare($sql_count);
+if ($types) {
+    $stmt_c->bind_param($types, ...$params_query);
+}
+$stmt_c->execute();
+$total_registros = $stmt_c->get_result()->fetch_assoc()['total'];
+$total_paginas = ceil($total_registros / $limite);
+
+// 2. CONSULTA CON LIMIT Y OFFSET
+$sql = "SELECT * FROM producto";
+if ($where) {
+    $sql .= " WHERE " . implode(" AND ", $where);
+}
+$sql .= " LIMIT ? OFFSET ?";
+
+$stmt = $conexion->prepare($sql);
+$types_f = $types . "ii";
+$params_f = array_merge($params_query, [$limite, $offset]);
+$stmt->bind_param($types_f, ...$params_f);
+$stmt->execute();
+$result = $stmt->get_result();
+
+$editar_id = $_GET['editar_id'] ?? null;
 ?>
 
 <!DOCTYPE html>
@@ -15,265 +89,181 @@ $nombre = $_SESSION['nombre']; // Obtenemos el nombre de la sesión
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inicio - Inventario</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../assets/css/style.css">
-
 </head>
 
 <body>
-    <button class="btn btn-outline-dark d-md-none"
-        data-bs-toggle="collapse"
-        data-bs-target="#sidebar">
-        <i class="bi bi-list fs-4"></i>
-    </button>
     <div class="wrapper">
-
-        <?php
-        $pagina = 'home'; // Definimos qué página es esta
-        include '../componentes/sidebar.php'; // Incluimos el archivo
-        ?>
+        <?php $pagina_activa = 'home';
+        include '../componentes/sidebar.php'; ?>
 
         <div class="main-content">
-
             <div class="container-fluid p-4">
-                <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
-                    <div class="cont_special justify-content-center">
-                        <div class="text-center mb-4">
-                            <h2 class="fw-bold text-dark ">Bienvenido</h2>
-                            <div class="d-flex justify-content-center flex-wrap gap-2 mt-3">
-                                <form method="post" class="d-inline">
-                                    <button name="ver_productos" class="btn btn-secondary">Ver productos</button>
-                                </form>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white py-3 text-center">
+                        <h4 class="mb-0 fw-bold text-primary">LISTA DE PRODUCTOS</h4>
+                    </div>
+                    <div class="card-body">
+                        <form method="GET" class="row g-2 mb-4">
+                            <div class="col-md-8">
+                                <input type="text" name="busqueda_general" class="form-control" placeholder="Buscar por ID, Marca o Nombre..." value="<?= htmlspecialchars($busqueda_general) ?>">
                             </div>
-                        </div>
-                    </div>
-                </div>
-                <div id="liveToast" class="toast position-fixed bottom-0 end-0 m-3" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000" style="z-index: 1050;">
-                    <div class="toast-header">
-                        <strong class="me-auto">Sistema</strong>
-                        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                    </div>
-                    <div class="toast-body">
-                        ¡Hola! PENDIENTE
-                    </div>
-                </div>
-
-                <?php
-                if (isset($_POST['ver_productos']) || isset($_POST['buscar']) || isset($_POST['editar_producto']) || isset($_POST['cancelar_edicion'])) {
-                    require_once 'conexion.php';
-
-                    // Procesar actualización
-                    if (isset($_POST['editar_producto'])) {
-                        $id_original = $_POST['id_original'];
-                        $id_producto = $_POST['id_producto'];
-                        $marca = $_POST['marca'];
-                        $nombre = $_POST['nombre'];
-                        $contenido = $_POST['contenido'];
-                        $piezas = $_POST['piezas'];
-                        $precio = $_POST['precio'];
-
-                        $stmt = $conexion->prepare("UPDATE producto SET id_producto=?, marca=?, nombre=?, contenido=?, piezas=?, precio=? WHERE id_producto=?");
-                        $stmt->bind_param("ssssids", $id_producto, $marca, $nombre, $contenido, $piezas, $precio, $id_original);
-                        $stmt->execute();
-                        $stmt->close();
-                    }
-
-                    // Captura de filtros
-                    $busqueda_general = $_POST['busqueda_general'] ?? '';
-                    $filtros = [
-                        'id_producto' => $_POST['f_id_producto'] ?? '',
-                        'marca'       => $_POST['f_marca'] ?? '',
-                        'nombre'      => $_POST['f_nombre'] ?? '',
-                        'contenido'   => $_POST['f_contenido'] ?? '',
-                        'piezas'      => $_POST['f_piezas'] ?? '',
-                        'precio'      => $_POST['f_precio'] ?? '',
-                    ];
-
-                    $where = [];
-                    $params = [];
-                    $types = '';
-
-                    // Filtro general
-                    if ($busqueda_general !== '') {
-                        $param = "%$busqueda_general%";
-                        $where[] = "(id_producto LIKE ? OR marca LIKE ? OR nombre LIKE ? OR contenido LIKE ? OR CAST(piezas AS CHAR) LIKE ? OR CAST(precio AS CHAR) LIKE ?)";
-                        $types .= "ssssss";
-                        for ($i = 0; $i < 6; $i++) $params[] = $param;
-                    }
-
-                    // Filtros específicos
-                    foreach ($filtros as $campo => $valor) {
-                        if ($valor !== '') {
-                            if ($campo == 'piezas' || $campo == 'precio') {
-                                $where[] = "$campo = ?";
-                                $types .= ($campo == 'piezas') ? "i" : "d";
-                                $params[] = $campo == 'piezas' ? intval($valor) : floatval($valor);
-                            } else {
-                                $where[] = "$campo LIKE ?";
-                                $types .= "s";
-                                $params[] = "%$valor%";
-                            }
-                        }
-                    }
-
-                    $sql = "SELECT * FROM producto";
-                    if (count($where) > 0) {
-                        $sql .= " WHERE " . implode(" AND ", $where);
-                    }
-
-                    $stmt = $conexion->prepare($sql);
-                    if ($types !== '') {
-                        $bind_names[] = $types;
-                        for ($i = 0; $i < count($params); $i++) {
-                            $bind_name = 'bind' . $i;
-                            $$bind_name = $params[$i];
-                            $bind_names[] = &$$bind_name;
-                        }
-                        call_user_func_array([$stmt, 'bind_param'], $bind_names);
-                    }
-
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    $editar_id = $_POST['editar_id'] ?? null;
-                ?>
-
-                    <div class="card shadow-sm mb-5" id="tablaProductos">
-                        <div class="card-header bg-white">
-                            <h4 class="mb-0 text-center">Lista de productos</h4>
-                        </div>
-                        <div class="card-body">
-                            <form method="POST" class="mb-3">
-                                <input type="hidden" name="ver_productos" value="1">
-                                <div class="row g-3 align-items-center mb-3">
-                                    <div class="col-auto">
-                                        <label for="busqueda_general" class="col-form-label fw-bold">Buscar:</label>
-                                    </div>
-                                    <div class="col-auto flex-grow-1">
-                                        <input type="text" name="busqueda_general" id="busqueda_general" class="form-control" placeholder="Escribe para buscar..." value="<?= htmlspecialchars($busqueda_general) ?>">
-                                    </div>
-                                    <button type="button"
-                                        class="btn btn-outline-primary w-100 mt-2 d-md-none"
-                                        onclick="abrirScanner()">
-                                        <i class="bi bi-camera"></i> Escanear con cámara
-                                    </button>
-                                    <div class="col-auto">
-                                        <button type="submit" name="buscar" class="btn btn-primary">Buscar</button>
-                                        <a href="home.php" class="btn btn-outline-secondary">Limpiar</a>
-                                    </div>
-                                </div>
-
-                                <div class="row g-2">
-                                    <div class="col-md-2"><input type="text" name="f_id_producto" class="form-control form-control-sm" placeholder="Filtrar ID" value="<?= htmlspecialchars($filtros['id_producto']) ?>"></div>
-                                    <div class="col-md-2"><input type="text" name="f_marca" class="form-control form-control-sm" placeholder="Filtrar Marca" value="<?= htmlspecialchars($filtros['marca']) ?>"></div>
-                                    <div class="col-md-2"><input type="text" name="f_nombre" class="form-control form-control-sm" placeholder="Filtrar Nombre" value="<?= htmlspecialchars($filtros['nombre']) ?>"></div>
-                                    <div class="col-md-2"><input type="text" name="f_contenido" class="form-control form-control-sm" placeholder="Filtrar Cont." value="<?= htmlspecialchars($filtros['contenido']) ?>"></div>
-                                    <div class="col-md-2"><input type="number" name="f_piezas" class="form-control form-control-sm" placeholder="Filtrar Piezas" value="<?= htmlspecialchars($filtros['piezas']) ?>"></div>
-                                    <div class="col-md-2"><input type="number" step="0.01" name="f_precio" class="form-control form-control-sm" placeholder="Filtrar Precio" value="<?= htmlspecialchars($filtros['precio']) ?>"></div>
-                                </div>
-                            </form>
-                            <div id="scanner-container" class="mt-3 d-none">
-                                <video id="video" autoplay playsinline style="width:100%;"></video>
-                                <button class="btn btn-danger w-100 mt-2" onclick="cerrarScanner()">
-                                    Cerrar cámara
-                                </button>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Buscar</button>
                             </div>
+                            <div class="col-md-2">
+                                <a href="home.php" class="btn btn-outline-secondary w-100"><i class="bi bi-eraser"></i> Limpiar</a>
+                            </div>
+                        </form>
 
-                            <?php if ($result && $result->num_rows > 0): ?>
-                                <div class="table-responsive">
-                                    <table class="table table-bordered table-hover align-middle">
-                                        <thead class="table-dark">
-                                            <tr>
-                                                <th>ID</th>
-                                                <th>Marca</th>
-                                                <th>Nombre</th>
-                                                <th>Contenido</th>
-                                                <th>Piezas</th>
-                                                <th>Precio</th>
-                                                <th style="width: 150px;">Acciones</th>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover align-middle">
+                                <thead class="table-dark text-center">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Marca</th>
+                                        <th>Nombre</th>
+                                        <th>Contenido</th>
+                                        <th>Stock</th>
+                                        <th>Precio</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php while ($row = $result->fetch_assoc()):
+                                        $es_esta_fila = ($editar_id == $row['id_producto']);
+                                    ?>
+                                        <?php if ($es_esta_fila): ?>
+                                            <tr class="table-info">
+                                                <form method="POST" id="formEditar">
+                                                    <input type="hidden" name="id_original" value="<?= $row['id_producto'] ?>">
+                                                    <input type="hidden" name="guardar_cambios" value="1">
+                                                    <td><input type="text" name="id_producto" class="form-control form-control-sm" value="<?= $row['id_producto'] ?>"></td>
+                                                    <td><input type="text" name="marca" class="form-control form-control-sm" value="<?= $row['marca'] ?>"></td>
+                                                    <td><input type="text" name="nombre" class="form-control form-control-sm" value="<?= $row['nombre'] ?>"></td>
+                                                    <td><input type="text" name="contenido" class="form-control form-control-sm" value="<?= $row['contenido'] ?>"></td>
+                                                    <td><input type="number" name="piezas" class="form-control form-control-sm" value="<?= $row['piezas'] ?>"></td>
+                                                    <td><input type="number" step="0.01" name="precio" class="form-control form-control-sm" value="<?= $row['precio'] ?>"></td>
+                                                    <td class="text-center">
+                                                        <div class="btn-group">
+                                                            <button type="button" onclick="confirmarCambio()" class="btn btn-success btn-sm"><i class="bi bi-check-lg"></i></button>
+                                                            <?php
+                                                            $params_cancel = $_GET;
+                                                            unset($params_cancel['editar_id']);
+                                                            unset($params_cancel['status']);
+                                                            ?>
+                                                            <a href="home.php?<?= http_build_query($params_cancel) ?>" class="btn btn-secondary btn-sm"><i class="bi bi-x-lg"></i></a>
+                                                        </div>
+                                                    </td>
+                                                </form>
                                             </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php while ($row = $result->fetch_assoc()):
-                                                $is_editing = ($editar_id === $row['id_producto']);
-                                            ?>
-                                                <?php if ($is_editing): ?>
-                                                    <tr class="table-active">
-                                                        <form method="POST">
-                                                            <input type="hidden" name="id_original" value="<?= htmlspecialchars($row['id_producto']) ?>">
-                                                            <input type="hidden" name="ver_productos" value="1">
-                                                            <td><input type="text" class="form-control form-control-sm" name="id_producto" value="<?= htmlspecialchars($row['id_producto']) ?>" required></td>
-                                                            <td><input type="text" class="form-control form-control-sm" name="marca" value="<?= htmlspecialchars($row['marca']) ?>" required></td>
-                                                            <td><input type="text" class="form-control form-control-sm" name="nombre" value="<?= htmlspecialchars($row['nombre']) ?>" required></td>
-                                                            <td><input type="text" class="form-control form-control-sm" name="contenido" value="<?= htmlspecialchars($row['contenido']) ?>" required></td>
-                                                            <td><input type="number" class="form-control form-control-sm" name="piezas" value="<?= htmlspecialchars($row['piezas']) ?>" required></td>
-                                                            <td><input type="number" step="0.01" class="form-control form-control-sm" name="precio" value="<?= htmlspecialchars($row['precio']) ?>" required></td>
-                                                            <td>
-                                                                <button type="submit" name="editar_producto" class="btn btn-success btn-sm"><i class="bi bi-check-lg"></i></button>
-                                                                <button type="submit" name="cancelar_edicion" class="btn btn-secondary btn-sm"><i class="bi bi-x-lg"></i></button>
-                                                            </td>
-                                                        </form>
-                                                    </tr>
-                                                <?php else: ?>
-                                                    <tr>
-                                                        <td><?= htmlspecialchars($row['id_producto']) ?></td>
-                                                        <td><?= htmlspecialchars($row['marca']) ?></td>
-                                                        <td><?= htmlspecialchars($row['nombre']) ?></td>
-                                                        <td><?= htmlspecialchars($row['contenido']) ?></td>
-                                                        <td><?= htmlspecialchars($row['piezas']) ?></td>
-                                                        <td>$<?= htmlspecialchars($row['precio']) ?></td>
-                                                        <td>
-                                                            <form method="POST" style="display:inline;">
-                                                                <input type="hidden" name="editar_id" value="<?= htmlspecialchars($row['id_producto']) ?>">
-                                                                <input type="hidden" name="ver_productos" value="1">
-                                                                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-pencil-square"></i> Editar</button>
-                                                            </form>
-                                                        </td>
-                                                    </tr>
-                                                <?php endif; ?>
-                                            <?php endwhile; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            <?php else: ?>
-                                <div class="alert alert-warning text-center mt-3">No hay productos que coincidan con la búsqueda.</div>
-                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <tr>
+                                                <td class="text-center fw-bold"><?= $row['id_producto'] ?></td>
+                                                <td><?= $row['marca'] ?></td>
+                                                <td><?= $row['nombre'] ?></td>
+                                                <td class="text-center"><?= $row['contenido'] ?></td>
+                                                <td class="text-center">
+                                                    <span class="badge <?= ($row['piezas'] < 10) ? 'bg-danger' : 'bg-success' ?>">
+                                                        <?= $row['piezas'] ?>
+                                                    </span>
+                                                </td>
+                                                <td class="text-end fw-bold text-success">$<?= number_format($row['precio'], 2) ?></td>
+                                                <td class="text-center">
+                                                    <?php
+                                                    $params_edit = $_GET;
+                                                    $params_edit['editar_id'] = $row['id_producto'];
+                                                    unset($params_edit['status']);
+                                                    ?>
+                                                    <a href="?<?= http_build_query($params_edit) ?>" class="btn btn-primary btn-sm">
+                                                        <i class="bi bi-pencil-square"></i>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        <?php endif; ?>
+                                    <?php endwhile; ?>
+                                </tbody>
+                            </table>
                         </div>
+
+                        <?php if ($total_paginas > 1): ?>
+                            <nav class="mt-4">
+                                <ul class="pagination justify-content-center">
+                                    <?php
+                                    $qs = $_GET;
+                                    unset($qs['editar_id']);
+                                    unset($qs['status']);
+                                    ?>
+
+                                    <li class="page-item <?= ($pagina <= 1) ? 'disabled' : '' ?>">
+                                        <a class="page-link" href="?<?= http_build_query(array_merge($qs, ['pagina' => $pagina - 1])) ?>">Anterior</a>
+                                    </li>
+
+                                    <?php for ($i = 1; $i <= $total_paginas; $i++): ?>
+                                        <li class="page-item <?= ($pagina == $i) ? 'active' : '' ?>">
+                                            <a class="page-link" href="?<?= http_build_query(array_merge($qs, ['pagina' => $i])) ?>"><?= $i ?></a>
+                                        </li>
+                                    <?php endfor; ?>
+
+                                    <li class="page-item <?= ($pagina >= $total_paginas) ? 'disabled' : '' ?>">
+                                        <a class="page-link" href="?<?= http_build_query(array_merge($qs, ['pagina' => $pagina + 1])) ?>">Siguiente</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        <?php endif; ?>
+
+                        <div class="text-center text-muted small mt-2">
+                            Mostrando <?= $result->num_rows ?> de <?= $total_registros ?> productos.
+                        </div>
+
                     </div>
-
-                <?php } ?>
-
+                </div>
             </div>
-
-            <?php
-            include '../componentes/footer.php'; // Incluimos el archivo
-            ?>
+            <?php include '../componentes/footer.php'; ?>
         </div>
     </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
-        // Prevenir botón atrás
-        history.pushState(null, null, location.href);
-        window.onpopstate = function() {
-            history.go(1);
-        };
-
-        // Scroll automático a la tabla si se está viendo productos
-        <?php if (isset($_POST['ver_productos'])): ?>
-            document.addEventListener("DOMContentLoaded", function() {
-                const tabla = document.getElementById('tablaProductos');
-                if (tabla) {
-                    tabla.scrollIntoView({
-                        behavior: 'smooth'
-                    });
+        function confirmarCambio() {
+            Swal.fire({
+                title: '¿Confirmar cambios?',
+                text: "Los datos del producto serán actualizados permanentemente.",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#198754',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, guardar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('formEditar').submit();
                 }
+            })
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('status') === 'success') {
+            Swal.fire({
+                title: '¡Éxito!',
+                text: 'Producto actualizado correctamente.',
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false
+            }).then(() => {
+                urlParams.delete('status');
+                const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+                window.history.replaceState({}, document.title, newUrl);
             });
-        <?php endif; ?>
+        }
     </script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <script src="../assets/js/buscar-scanner.js" defer></script>
 </body>
+
 </html>

@@ -5,15 +5,11 @@
     box-sizing: border-box;
 }
 
-html,
-body {
-    overflow-x: hidden;
+html, body {
+    height: 100%;
     margin: 0;
     padding: 0;
-    height: 200%;
-    overflow: hidden;
-    /* Evita doble scroll */
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    overflow-x: hidden;
 }
 
 /* CONTENEDOR PRINCIPAL */
@@ -25,7 +21,7 @@ body {
 
 /* SIDEBAR */
 .sidebar {
-    height: 100vh;
+    min-height: 100vh;
     overflow-y: auto;
     width: 280px;
     background-color: #212529;
@@ -49,7 +45,7 @@ body {
 
 .wrapper {
     display: flex;
-    height: 100vh;
+    min-height: 100vh;
 }
 
 .sidebar {
