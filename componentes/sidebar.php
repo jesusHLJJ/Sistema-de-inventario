@@ -17,7 +17,7 @@
 
         <li>
             <a href="../controladores/perfil.php" class="nav-link <?= ($pagina == 'perfil') ? 'active' : 'text-white' ?>">
-                <i class="bi bi-person-circle me-2"></i> Perfil
+                <i class="bi bi-person me-2"></i> Perfil
             </a>
         </li>
 
@@ -47,6 +47,16 @@
         <li>
             <a href="analisis.php" class="nav-link <?= ($pagina == 'analisis') ? 'active' : 'text-white' ?>">
                 <i class="bi bi-graph-up-arrow me-2"></i> Rendimiento
+            </a>
+        </li>
+        <li>
+            <a href="historial_cajas.php" class="nav-link <?= ($pagina == 'historial_cajas') ? 'active' : 'text-white' ?>">
+                <i class="bi bi-archive me-2"></i> Historial de cajas
+            </a>
+        </li>
+        <li>
+            <a href="prestamos.php" class="nav-link <?= ($pagina == 'prestamos') ? 'active' : 'text-white' ?>">
+                <i class="bi bi-cash-coin me-2"></i> Prestamos
             </a>
         </li>
         <li class="nav-item d-md-none mt-3">

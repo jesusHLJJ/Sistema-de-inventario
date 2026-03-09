@@ -120,6 +120,7 @@ $detalles = $stmt->get_result();
                                 if ($venta['estatus'] == 'En proceso' || $venta['estatus'] == 'Pagado') $bg = 'bg-warning text-dark';
                                 if ($venta['estatus'] == 'Finalizada') $bg = ' bg-success';
                                 if ($venta['estatus'] == 'Cancelada') $bg = 'bg-danger';
+                                if ($venta['estatus'] == 'Prestamo') $bg = 'bg-warning';
                                 ?>
                                 <span class="badge <?= $bg ?>"><?= $venta['estatus'] ?></span>
                             </div>

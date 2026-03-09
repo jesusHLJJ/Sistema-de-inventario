@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once '../controladores/conexion.php'; // Necesario para cargar los negocios
 
 // Verifica si el usuario está logueado
 if (!isset($_SESSION['id_empleado'])) {
@@ -43,7 +44,6 @@ $nombre = $_SESSION['nombre'];
             height: 100vh;
             overflow-y: auto;
             background-color: #f8f9fa;
-            /* Fondo gris claro suave */
             display: flex;
             flex-direction: column;
         }
@@ -59,7 +59,7 @@ $nombre = $_SESSION['nombre'];
     <div class="wrapper">
 
         <?php
-        $pagina = 'agregar_producto'; // Puedes ajustar esto según tu sidebar
+        $pagina = 'agregar_producto'; 
         include '../componentes/sidebar.php';
         ?>
 
@@ -98,21 +98,44 @@ $nombre = $_SESSION['nombre'];
 
                         <div class="row mb-3">
                             <div class="col-md-6">
+                                <label for="id_negocio" class="form-label fw-bold">Unidad de Negocio</label>
+                                <select class="form-select" id="id_negocio" name="id_negocio" required>
+                                    <option value="">Selecciona un negocio...</option>
+                                    <?php
+                                    $res_negocios = $conexion->query("SELECT * FROM negocio");
+                                    while($neg = $res_negocios->fetch_assoc()){
+                                        echo "<option value='{$neg['id_negocio']}'>".htmlspecialchars($neg['nombre_negocio'])."</option>";
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="venta_por" class="form-label fw-bold">Se vende por:</label>
+                                <select class="form-select" id="venta_por" name="venta_por" required>
+                                    <option value="pieza">Pieza (Unidad)</option>
+                                    <option value="granel">Granel (Peso/Manual)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
                                 <label for="contenido" class="form-label fw-bold">Contenido</label>
                                 <input type="text" class="form-control" id="contenido" name="contenido" required placeholder="Ej. 1 pza, 500ml...">
                             </div>
                             <div class="col-md-6">
-                                <label for="piezas" class="form-label fw-bold">Stock Inicial (Piezas)</label>
-                                <input type="number" class="form-control" id="piezas" name="piezas" required placeholder="0">
+                                <label for="piezas" class="form-label fw-bold">Stock Inicial</label>
+                                <input type="number" step="0.001" class="form-control" id="piezas" name="piezas" required placeholder="0">
                             </div>
                         </div>
 
                         <div class="mb-4">
-                            <label for="precio" class="form-label fw-bold">Precio de Venta</label>
+                            <label for="precio" class="form-label fw-bold">Precio de Venta Sugerido</label>
                             <div class="input-group">
                                 <span class="input-group-text">$</span>
                                 <input type="number" step="0.01" class="form-control" id="precio" name="precio" required placeholder="0.00">
                             </div>
+                            <small class="text-muted">Si es a granel, este precio podrá editarse durante la venta.</small>
                         </div>
 
                         <div class="d-flex justify-content-between">
@@ -139,7 +162,7 @@ $nombre = $_SESSION['nombre'];
                     <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Cerrar"></button>
                 </div>
                 <div class="toast-body text-dark">
-                    Llena todos los campos correctamente para registrar el nuevo producto en el inventario. 💡
+                    Ahora puedes clasificar tus productos por negocio y tipo de venta (Granel o Pieza). 💡
                 </div>
             </div>
 
@@ -150,7 +173,6 @@ $nombre = $_SESSION['nombre'];
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        
         document.addEventListener("DOMContentLoaded", function() {
             const toastElement = document.getElementById('liveToast');
             if (toastElement) {
